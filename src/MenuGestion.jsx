@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import "./App.css";
 
-const API_BASE_URL = "http://127.0.0.1:8000/api/menu";
+const API_BASE_URL = "https://super-duper-backend-pvrx.onrender.com/api/menu";
 
 export default function MenuGestion({ currentUser, token, showToast }) {
   const [platos, setPlatos] = useState([]);

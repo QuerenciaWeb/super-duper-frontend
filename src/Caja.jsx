@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import './App.css';
 
-const API_BASE_URL = 'http://127.0.0.1:8000/api';
+const API_BASE_URL = "https://super-duper-backend-pvrx.onrender.com/api";
 
 export default function Caja({ currentUser, token, showToast }) {
   const [pedidos, setPedidos] = useState([]);

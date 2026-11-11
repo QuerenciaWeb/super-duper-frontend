@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import "./App.css";
 
-const API_BASE_URL = "http://127.0.0.1:8000/api/facturacion";
+const API_BASE_URL = "https://super-duper-backend-pvrx.onrender.com/api/facturacion";
 
 export default function Facturacion({ currentUser, token, showToast }) {
   const [activeTab, setActiveTab] = useState("emitir");
