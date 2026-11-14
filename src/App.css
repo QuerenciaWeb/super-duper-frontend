@@ -80,6 +80,25 @@ body {
   to { opacity: 1; transform: scale(1); }
 }
 
+.auth-logo-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.auth-logo {
+  height: 74px;
+  width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 12px rgba(110, 78, 226, 0.35));
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.auth-logo:hover {
+  transform: scale(1.06);
+}
+
 h2 {
   font-size: 2.4rem;
   font-weight: 700;
@@ -599,6 +618,27 @@ tr:hover td {
   border-radius: 16px;
   margin-bottom: 30px;
   box-shadow: var(--shadow-sm);
+}
+
+.navbar-brand-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.navbar-logo {
+  height: 38px;
+  width: auto;
+  object-fit: contain;
+  transition: transform 0.25s ease, filter 0.25s ease;
+  filter: drop-shadow(0 2px 6px rgba(110, 78, 226, 0.3));
+}
+
+.navbar-brand-wrapper:hover .navbar-logo {
+  transform: scale(1.08);
+  filter: drop-shadow(0 3px 10px rgba(110, 78, 226, 0.45));
 }
 
 .navbar-brand {

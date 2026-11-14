@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import './App.css';
+import logoMoradoSilueta from './assets/logo_morado_silueta.png';
 import Caja from './Caja';
 import Inventario from './Inventario';
 import MenuGestion from './MenuGestion';
@@ -465,6 +466,9 @@ function App() {
       {!isAuthenticated ? (
         // --- FORMULARIO DE ACCESO (LOGIN / REGISTRO) ---
         <div className="auth-box">
+          <div className="auth-logo-wrapper">
+            <img src={logoMoradoSilueta} alt="Logo La Querencia" className="auth-logo" />
+          </div>
           <h2>La Querencia</h2>
           <p className="subtitle">
             {authMode === 'login' 
@@ -630,7 +634,10 @@ function App() {
         <>
           {/* Barra de Navegación (Menú) */}
           <div className="navbar">
-            <span className="navbar-brand">La Querencia</span>
+            <div className="navbar-brand-wrapper" onClick={() => setActiveTab('inicio')} title="Ir a Inicio">
+              <img src={logoMoradoSilueta} alt="Logo La Querencia" className="navbar-logo" />
+              <span className="navbar-brand">La Querencia</span>
+            </div>
             <div className="nav-links">
               <button 
                 className={`nav-btn ${activeTab === 'inicio' ? 'active' : ''}`}

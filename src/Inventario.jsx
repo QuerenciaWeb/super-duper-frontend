@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import "./App.css";
+import BarcodeScanner from "./BarcodeScanner";
 
 const API_BASE_URL = "https://super-duper-backend-pvrx.onrender.com/api/inventario";
 
@@ -20,6 +21,67 @@ export default function Inventario({ currentUser, token, showToast }) {
   const [provForm, setProvForm] = useState({ nit: "", nombre: "", telefono: "", correo: "" });
   const [prodForm, setProdForm] = useState({ dni_producto: "", nombre: "", descripcion: "", stock: "", categoria_id: "" });
   const [entradaForm, setEntradaForm] = useState({ cantidad: "", precio_compra_unidad: "", proveedor_id: "", producto_id: "" });
+
+  // Escáner de código de barras (cámara): "producto" llena el formulario, "entrada" selecciona el producto a reabastecer
+  const [scanTarget, setScanTarget] = useState(null);
+  const [sincronizando, setSincronizando] = useState(false);
+  const [predicciones, setPredicciones] = useState([]);
+  const [horizonte, setHorizonte] = useState(7);
+  const [cargandoPred, setCargandoPred] = useState(false);
+
+  const cargarPredicciones = async (h = horizonte) => {
+    setCargandoPred(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/predicciones?horizonte=${h}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) setPredicciones(await res.json());
+      else showToast("No se pudieron calcular las predicciones", "error");
+    } catch (e) {
+      showToast("Error de red al calcular predicciones", "error");
+    } finally {
+      setCargandoPred(false);
+    }
+  };
+
+  // Lleva la sugerencia al formulario de entradas
+  const pedirSugerido = (p) => {
+    setEntradaForm((f) => ({ ...f, producto_id: p.dni_producto, cantidad: String(p.cantidad_sugerida || "") }));
+    setActiveSubTab("entradas");
+  };
+
+  const manejarEscaneo = (codigo) => {
+    const destino = scanTarget;
+    setScanTarget(null);
+    if (!codigo) return;
+    if (destino === "producto") {
+      setProdForm((f) => ({ ...f, dni_producto: codigo }));
+      showToast(`Código leído: ${codigo}`, "success");
+    } else if (destino === "entrada") {
+      const prod = productos.find((p) => String(p.dni_producto).trim() === codigo);
+      if (prod) {
+        setEntradaForm((f) => ({ ...f, producto_id: prod.dni_producto }));
+        showToast(`Producto: ${prod.nombre}`, "success");
+      } else {
+        showToast(`El código ${codigo} no está registrado. Créalo primero en Productos.`, "error");
+      }
+    }
+  };
+
+  const sincronizarSheets = async () => {
+    setSincronizando(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/sincronizar-sheets`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        showToast(`Google Sheets actualizado: ${data.OK} OK, ${data.BAJO} bajo, ${data.AGOTADO} agotado`, "success");
+      } else {
+        showToast(data.detail || "No se pudo actualizar Google Sheets", "error");
+      }
+    } catch (e) {
+      showToast("Error de red al actualizar Google Sheets", "error");
+    } finally {
+      setSincronizando(false);
+    }
+  };
 
   const descargarReporte = async () => {
     try {
@@ -48,6 +110,7 @@ export default function Inventario({ currentUser, token, showToast }) {
     cargarProveedores();
     cargarProductos();
     if (activeSubTab === "entradas") cargarEntradas();
+    if (activeSubTab === "predicciones") cargarPredicciones();
   }, [activeSubTab]);
 
   // CARGAS
@@ -225,6 +288,7 @@ export default function Inventario({ currentUser, token, showToast }) {
       <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
         <button className={`btn ${activeSubTab === "productos" ? "" : "btn-secondary"}`} onClick={() => setActiveSubTab("productos")}>Productos</button>
         <button className={`btn ${activeSubTab === "entradas" ? "" : "btn-secondary"}`} onClick={() => setActiveSubTab("entradas")}>Entradas (Stock)</button>
+        <button className={`btn ${activeSubTab === "predicciones" ? "" : "btn-secondary"}`} onClick={() => setActiveSubTab("predicciones")}>📈 Predicciones</button>
         <button className={`btn ${activeSubTab === "categorias" ? "" : "btn-secondary"}`} onClick={() => setActiveSubTab("categorias")}>Categorías</button>
         <button className={`btn ${activeSubTab === "proveedores" ? "" : "btn-secondary"}`} onClick={() => setActiveSubTab("proveedores")}>Proveedores</button>
       </div>
@@ -235,15 +299,21 @@ export default function Inventario({ currentUser, token, showToast }) {
             <h4>{editandoProducto ? "Editar Producto" : "Nuevo Producto"}</h4>
             <form onSubmit={crearProducto}>
               <div className="form-group">
-                <label>DNI / Código</label>
-                <input 
-                  type="text" 
-                  required 
-                  placeholder="Ej. 1528"
-                  value={prodForm.dni_producto} 
-                  onChange={e => setProdForm({...prodForm, dni_producto: e.target.value})} 
-                  disabled={isLoading || editandoProducto} 
-                />
+                <label>DNI / Código (escríbelo, usa lector USB o la cámara)</label>
+                <div style={{ display: "flex", gap: "6px" }}>
+                  <input 
+                    type="text" 
+                    required 
+                    placeholder="Ej. 1528"
+                    value={prodForm.dni_producto} 
+                    onChange={e => setProdForm({...prodForm, dni_producto: e.target.value})} 
+                    disabled={isLoading || editandoProducto} 
+                    style={{ flex: 1 }}
+                  />
+                  {!editandoProducto && (
+                    <button type="button" className="btn btn-secondary" title="Escanear con la cámara" onClick={() => setScanTarget("producto")} disabled={isLoading}>📷</button>
+                  )}
+                </div>
                 {productoExistente && (
                   <div style={{ color: "#ef4444", fontSize: "0.82rem", marginTop: "6px", lineHeight: "1.3" }}>
                     ⚠️ Ya existe "<strong>{productoExistente.nombre}</strong>" con este código.{" "}
@@ -311,6 +381,9 @@ export default function Inventario({ currentUser, token, showToast }) {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <h2>Catálogo de Productos ({productos.length})</h2>
               <button className="btn" onClick={descargarReporte} style={{ background: "#059669" }}>📊 Descargar Excel</button>
+              <button className="btn" onClick={sincronizarSheets} disabled={sincronizando} style={{ background: "#0f9d58", marginLeft: "8px" }}>
+                {sincronizando ? "Sincronizando..." : "🔄 Actualizar Google Sheets"}
+              </button>
             </div>
             <div style={{ marginBottom: "15px" }}>
               <input type="text" placeholder="Buscar por DNI o Nombre..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} style={{ width: "100%", padding: "10px", borderRadius: "5px", border: "1px solid #ccc" }} />
@@ -357,10 +430,13 @@ export default function Inventario({ currentUser, token, showToast }) {
                 </select>
               </div>
               <div className="form-group"><label>Producto a Reabastecer</label>
-                <select required value={entradaForm.producto_id} onChange={e => setEntradaForm({...entradaForm, producto_id: e.target.value})} disabled={isLoading}>
-                  <option value="">Seleccione producto...</option>
-                  {productos.map(p => <option key={p.dni_producto} value={p.dni_producto}>{p.nombre} (Stock: {p.stock})</option>)}
-                </select>
+                <div style={{ display: "flex", gap: "6px" }}>
+                  <select required style={{ flex: 1 }} value={entradaForm.producto_id} onChange={e => setEntradaForm({...entradaForm, producto_id: e.target.value})} disabled={isLoading}>
+                    <option value="">Seleccione producto...</option>
+                    {productos.map(p => <option key={p.dni_producto} value={p.dni_producto}>{p.nombre} (Stock: {p.stock})</option>)}
+                  </select>
+                  <button type="button" className="btn btn-secondary" title="Escanear con la cámara" onClick={() => setScanTarget("entrada")} disabled={isLoading}>📷</button>
+                </div>
               </div>
               <div className="form-group"><label>Cantidad que ingresa</label><input type="number" min="1" required value={entradaForm.cantidad} onChange={e => setEntradaForm({...entradaForm, cantidad: e.target.value})} disabled={isLoading} /></div>
               <div className="form-group"><label>Costo de compra (x Unidad)</label><input type="number" min="0" step="0.01" required value={entradaForm.precio_compra_unidad} onChange={e => setEntradaForm({...entradaForm, precio_compra_unidad: e.target.value})} disabled={isLoading} /></div>
@@ -450,6 +526,63 @@ export default function Inventario({ currentUser, token, showToast }) {
           </div>
         </div>
       )}
+
+      {activeSubTab === "predicciones" && (
+        <div className="users-list-panel">
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap", marginBottom: "12px" }}>
+            <h2 style={{ margin: 0 }}>Predicción de reposición</h2>
+            <label style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              Cubrir próximos
+              <select value={horizonte} onChange={(e) => { const h = Number(e.target.value); setHorizonte(h); cargarPredicciones(h); }}>
+                <option value={7}>7 días</option>
+                <option value={14}>14 días</option>
+                <option value={30}>30 días</option>
+              </select>
+            </label>
+            <button className="btn btn-sm" onClick={() => cargarPredicciones()} disabled={cargandoPred}>{cargandoPred ? "Calculando..." : "Recalcular"}</button>
+          </div>
+          <p style={{ fontSize: "0.85rem", opacity: 0.8, marginTop: 0 }}>
+            Se estima con las ventas recientes (platos × receta + ventas directas), tendencia y día de la semana. Se necesitan al menos 7 días de ventas.
+          </p>
+          <div className="users-table-container">
+            <table>
+              <thead>
+                <tr><th>Insumo</th><th>Stock</th><th>Riesgo</th><th>Tendencia</th><th>Consumo/día</th><th>Días restantes</th><th>Se agota</th><th>Sugerido pedir</th><th>Proveedor</th><th></th></tr>
+              </thead>
+              <tbody>
+                {predicciones.map((p) => {
+                  const colores = { CRITICO: "#fee2e2", ALERTA: "#fef3c7", OK: "transparent", SIN_CONSUMO: "transparent", SIN_DATOS: "transparent" };
+                  const etiquetas = { CRITICO: "🔴 Crítico", ALERTA: "🟡 Alerta", OK: "🟢 OK", SIN_CONSUMO: "Sin consumo", SIN_DATOS: "Sin datos" };
+                  const flechas = { SUBE: "↗ Sube", BAJA: "↘ Baja", ESTABLE: "→ Estable", SIN_DATOS: "—" };
+                  return (
+                    <tr key={p.dni_producto} style={{ background: colores[p.riesgo] }}>
+                      <td style={{ fontWeight: "bold" }}>{p.nombre}</td>
+                      <td>{p.stock}</td>
+                      <td>{etiquetas[p.riesgo]}</td>
+                      <td>{flechas[p.tendencia]}</td>
+                      <td>{p.consumo_diario ?? "—"}</td>
+                      <td>{p.dias_restantes ?? "—"}</td>
+                      <td>{p.fecha_agotamiento ?? "—"}</td>
+                      <td style={{ fontWeight: "bold" }}>{p.cantidad_sugerida ?? "—"}</td>
+                      <td>{p.proveedor_habitual ?? "—"}</td>
+                      <td>
+                        {p.cantidad_sugerida > 0 && (
+                          <button className="btn btn-sm" onClick={() => pedirSugerido(p)}>Registrar entrada</button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {predicciones.length === 0 && (
+                  <tr><td colSpan="10" style={{ textAlign: "center", padding: "20px" }}>{cargandoPred ? "Calculando..." : "No hay insumos para predecir."}</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {scanTarget && <BarcodeScanner onScan={manejarEscaneo} onClose={() => setScanTarget(null)} />}
     </div>
   );
 }
